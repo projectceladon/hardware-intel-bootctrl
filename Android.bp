@@ -1,0 +1,112 @@
+//
+// Copyright (C) 2017 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+cc_defaults {
+    name: "intel_avb_defaults",
+    cflags: [
+        "-D_FILE_OFFSET_BITS=64",
+        "-D_POSIX_C_SOURCE=199309L",
+        "-Wa,--noexecstack",
+        "-Werror",
+        "-Wall",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wmissing-prototypes",
+        "-Wno-psabi",
+        "-Wno-unused-parameter",
+        "-ffunction-sections",
+        "-fstack-protector-strong",
+        "-g",
+        "-DAVB_ENABLE_DEBUG",
+        "-DAVB_COMPILATION",
+        "-D_HW_DONT_INCLUDE_CORE_",
+    ],
+    cppflags: [
+        "-Wnon-virtual-dtor",
+        "-fno-strict-aliasing",
+    ],
+    ldflags: [
+        "-Wl,--gc-sections",
+        "-rdynamic",
+    ],
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+}
+
+cc_defaults {
+    name: "intel_avb_sources",
+    srcs: [
+        "libavb/avb_chain_partition_descriptor.c",
+        "libavb/avb_crc32.c",
+        "libavb/avb_crypto.c",
+        "libavb/avb_descriptor.c",
+        "libavb/avb_footer.c",
+        "libavb/avb_hash_descriptor.c",
+        "libavb/avb_hashtree_descriptor.c",
+        "libavb/avb_kernel_cmdline_descriptor.c",
+        "libavb/avb_property_descriptor.c",
+        "libavb/avb_rsa.c",
+        "libavb/avb_sha256.c",
+        "libavb/avb_sha512.c",
+        "libavb/avb_slot_verify.c",
+        "libavb/avb_util.c",
+        "libavb/avb_vbmeta_image.c",
+        "libavb/avb_version.c",
+        "libavb/avb_sysdeps_posix.c",
+        "libavb_user/avb_ops_user.c",
+        "libavb_ab/avb_ab_flow.c",
+        "boot_control_avb.c"
+    ],
+}
+
+cc_library_shared {
+    name: "bootctrl.intel",
+    defaults: [
+        "intel_avb_defaults",
+        "intel_avb_sources",
+    ],
+    vendor: true,
+    relative_install_path: "hw",
+    include_dirs: [
+        "hardware/libhardware/include",
+    ],
+    shared_libs: [
+        "libbase",
+        "libcutils",
+		"liblog",
+    ],
+}
+
+cc_library_static {
+    name: "bootctrl.intel.static",
+    defaults: [
+        "intel_avb_defaults",
+        "intel_avb_sources",
+    ],
+    vendor_available: true,
+    relative_install_path: "hw",
+    include_dirs: [
+        "hardware/libhardware/include",
+    ],
+    shared_libs: [
+        "libbase",
+        "libcutils",
+		"liblog",
+    ],
+}
