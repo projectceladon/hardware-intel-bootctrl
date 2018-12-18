@@ -27,6 +27,7 @@ cc_defaults {
         "-Wmissing-prototypes",
         "-Wno-psabi",
         "-Wno-unused-parameter",
+        "-Wno-format",
         "-ffunction-sections",
         "-fstack-protector-strong",
         "-g",
@@ -53,6 +54,7 @@ cc_defaults {
     name: "intel_avb_sources",
     srcs: [
         "libavb/avb_chain_partition_descriptor.c",
+        "libavb/avb_cmdline.c",
         "libavb/avb_crc32.c",
         "libavb/avb_crypto.c",
         "libavb/avb_descriptor.c",
@@ -69,8 +71,10 @@ cc_defaults {
         "libavb/avb_vbmeta_image.c",
         "libavb/avb_version.c",
         "libavb/avb_sysdeps_posix.c",
-        "libavb_user/avb_ops_user.c",
         "libavb_ab/avb_ab_flow.c",
+        "libavb_user/avb_ops_user.cpp",
+        "libavb_user/avb_user_verity.c",
+        "libavb_user/avb_user_verification.c",
         "boot_control_avb.c"
     ],
 }
@@ -85,11 +89,14 @@ cc_library_shared {
     relative_install_path: "hw",
     include_dirs: [
         "hardware/libhardware/include",
+        "system/core/include/"
     ],
     shared_libs: [
         "libbase",
         "libcutils",
-		"liblog",
+    ],
+    cflags: [
+        "-DAVB_AB_I_UNDERSTAND_LIBAVB_AB_IS_DEPRECATED",
     ],
 }
 
@@ -103,10 +110,13 @@ cc_library_static {
     relative_install_path: "hw",
     include_dirs: [
         "hardware/libhardware/include",
+        "system/core/include/"
     ],
     shared_libs: [
         "libbase",
         "libcutils",
-		"liblog",
+    ],
+    cflags: [
+        "-DAVB_AB_I_UNDERSTAND_LIBAVB_AB_IS_DEPRECATED",
     ],
 }

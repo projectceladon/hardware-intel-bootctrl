@@ -29,21 +29,22 @@
 #include <hardware/boot_control.h>
 #include <hardware/hardware.h>
 
-#include "libavb_user/libavb_user.h"
-
-#include <android/log.h>
-
+#include <libavb_ab/libavb_ab.h>
+#include <libavb_user/libavb_user.h>
 
 static AvbOps* ops = NULL;
 
 static void module_init(boot_control_module_t* module) {
   if (ops != NULL) {
+    avb_error("AvbOps instance is already exist.\n");
     return;
   }
 
   ops = avb_ops_user_new();
   if (ops == NULL) {
     avb_error("Unable to allocate AvbOps instance.\n");
+  } else {
+    avb_error("Success to allocate AvbOps instance.\n");
   }
 }
 
@@ -53,8 +54,6 @@ static unsigned int module_getNumberSlots(boot_control_module_t* module) {
 
 static unsigned int module_getCurrentSlot(boot_control_module_t* module) {
   char propbuf[PROPERTY_VALUE_MAX];
-
-  __android_log_print(ANDROID_LOG_INFO, "boot_control_avb2", "%s %d", __FILE__, __LINE__);
 
   property_get("ro.boot.slot_suffix", propbuf, "");
   if (strcmp(propbuf, "_a") == 0) {

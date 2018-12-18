@@ -35,10 +35,20 @@
 #include <unistd.h>
 
 #include <cutils/properties.h>
-
 #include <libavb_ab/libavb_ab.h>
 
-#define MISCDEV_DIR "/dev/block/by-name/misc"
+#define PARTITION_DIR "/dev/block/by-name/"
+#define PARTITION_NAME_LEN 100
+
+static int open_partition(const char* name, int flags) {
+  char path[PARTITION_NAME_LEN];
+  int fd;
+
+  sprintf(path, "%s%s", PARTITION_DIR, name);
+  fd = open(path, flags);
+
+  return fd;
+}
 
 static AvbIOResult read_from_partition(AvbOps* ops,
                                        const char* partition,
@@ -51,7 +61,7 @@ static AvbIOResult read_from_partition(AvbOps* ops,
   ssize_t num_read;
   AvbIOResult ret;
 
-  fd = open(MISCDEV_DIR, O_RDONLY);
+  fd = open_partition(partition, O_RDONLY);
   if (fd == -1) {
     ret = AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION;
     goto out;
@@ -114,7 +124,7 @@ static AvbIOResult write_to_partition(AvbOps* ops,
   ssize_t num_written;
   AvbIOResult ret;
 
-  fd = open(MISCDEV_DIR, O_WRONLY);
+  fd = open_partition(partition, O_WRONLY);
   if (fd == -1) {
     avb_errorv("Error opening \"", partition, "\" partition.\n", NULL);
     ret = AVB_IO_RESULT_ERROR_IO;
@@ -193,7 +203,7 @@ static AvbIOResult get_size_of_partition(AvbOps* ops,
   int fd;
   AvbIOResult ret;
 
-  fd = open(MISCDEV_DIR, O_WRONLY);
+  fd = open_partition(partition, O_WRONLY);
   if (fd == -1) {
     avb_errorv("Error opening \"", partition, "\" partition.\n", NULL);
     ret = AVB_IO_RESULT_ERROR_IO;
@@ -233,13 +243,13 @@ static AvbIOResult get_unique_guid_for_partition(AvbOps* ops,
 AvbOps* avb_ops_user_new(void) {
   AvbOps* ops;
 
-  ops = calloc(1, sizeof(AvbOps));
+  ops = static_cast<AvbOps*>(calloc(1, sizeof(AvbOps)));
   if (ops == NULL) {
     avb_error("Error allocating memory for AvbOps.\n");
     goto out;
   }
 
-  ops->ab_ops = calloc(1, sizeof(AvbABOps));
+  ops->ab_ops = static_cast<AvbABOps*>(calloc(1, sizeof(AvbABOps)));
   if (ops->ab_ops == NULL) {
     avb_error("Error allocating memory for AvbABOps.\n");
     free(ops);
