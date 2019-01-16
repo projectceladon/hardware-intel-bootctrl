@@ -55,7 +55,11 @@ static unsigned int module_getNumberSlots(boot_control_module_t* module) {
 static unsigned int module_getCurrentSlot(boot_control_module_t* module) {
   char propbuf[PROPERTY_VALUE_MAX];
 
-  property_get("ro.boot.slot_suffix", propbuf, "");
+  if (__system_property_get("ro.boot.slot_suffix", propbuf) < 0) {
+    avb_errorv("Unable to read slot suffix in ro.boot.slot_suffix\n", NULL);
+    return 0;
+  }
+
   if (strcmp(propbuf, "_a") == 0) {
     return 0;
   } else if (strcmp(propbuf, "_b") == 0) {
