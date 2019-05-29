@@ -268,8 +268,10 @@ AvbOps* avb_ops_user_new(void) {
   ops->ab_ops->read_ab_metadata = avb_ab_data_read;
   ops->ab_ops->write_ab_metadata = avb_ab_data_write;
 
-out:
   return ops;
+
+out:
+  return NULL;
 }
 
 void avb_ops_user_free(AvbOps* ops) {
