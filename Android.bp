@@ -86,6 +86,7 @@ cc_library_shared {
         "intel_avb_sources",
     ],
     vendor: true,
+    recovery_available: true,
     relative_install_path: "hw",
     include_dirs: [
         "hardware/libhardware/include",
