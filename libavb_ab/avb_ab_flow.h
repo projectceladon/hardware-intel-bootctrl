@@ -232,6 +232,13 @@ AvbABFlowResult avb_ab_flow(AvbABOps* ab_ops,
  */
 AvbIOResult avb_ab_mark_slot_active(AvbABOps* ab_ops, unsigned int slot_number);
 
+/* Support the user to get the current active slot, return
+ * the current active slot number.
+ *
+ * This function is typically used by user through the bootctl command.
+ */
+unsigned int avb_ab_get_active_slot(AvbABOps* ab_ops);
+
 /* Marks the slot with the given slot number as unbootable. Returns
  * AVB_IO_RESULT_OK on success, error code otherwise.
  *
