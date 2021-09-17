@@ -443,6 +443,24 @@ out:
   return ret;
 }
 
+unsigned int avb_ab_get_active_slot(AvbABOps* ab_ops) {
+  AvbABData ab_data, ab_data_orig;
+  AvbIOResult ret;
+
+  ret = load_metadata(ab_ops, &ab_data, &ab_data_orig);
+  if (ret != AVB_IO_RESULT_OK) {
+    goto out;
+  }
+
+  for (unsigned int i = 0; i < 2; i++) {
+      if (ab_data_orig.slots[i].priority == AVB_AB_MAX_PRIORITY)
+          return i;
+  }
+
+out:
+  return 0;
+}
+
 AvbIOResult avb_ab_mark_slot_unbootable(AvbABOps* ab_ops,
                                         unsigned int slot_number) {
   AvbABData ab_data, ab_data_orig;

@@ -89,6 +89,10 @@ static int module_setActiveBootSlot(boot_control_module_t* module,
   }
 }
 
+static unsigned int module_getActiveBootSlot(boot_control_module_t* module) {
+  return avb_ab_get_active_slot(ops->ab_ops);
+}
+
 static int module_setSlotAsUnbootable(struct boot_control_module* module,
                                       unsigned int slot) {
   if (avb_ab_mark_slot_unbootable(ops->ab_ops, slot) == AVB_IO_RESULT_OK) {
@@ -169,4 +173,5 @@ boot_control_module_t HAL_MODULE_INFO_SYM = {
     .isSlotBootable = module_isSlotBootable,
     .getSuffix = module_getSuffix,
     .isSlotMarkedSuccessful = module_isSlotMarkedSuccessful,
+    .getActiveBootSlot = module_getActiveBootSlot,
 };
