@@ -39,7 +39,7 @@ extern "C" {
 struct AvbABOps;
 typedef struct AvbABOps AvbABOps;
 
-struct AvbABData;
+struct bootloader_control;
 
 /* High-level operations/functions/methods for A/B that are platform
  * dependent.
@@ -59,7 +59,8 @@ struct AvbABOps {
    * Implementations will typically want to use avb_ab_data_read()
    * here to use the 'misc' partition for persistent storage.
    */
-  AvbIOResult (*read_ab_metadata)(AvbABOps* ab_ops, struct AvbABData* data);
+  AvbIOResult (*read_ab_metadata)(AvbABOps* ab_ops,
+                                  struct bootloader_control* data);
 
   /* Writes A/B metadata to persistent storage. This will byteswap and
    * update the CRC as needed. Returns AVB_IO_RESULT_OK on success,
@@ -69,7 +70,7 @@ struct AvbABOps {
    * here to use the 'misc' partition for persistent storage.
    */
   AvbIOResult (*write_ab_metadata)(AvbABOps* ab_ops,
-                                   const struct AvbABData* data);
+                                   const struct bootloader_control* data);
 };
 
 #ifdef __cplusplus
