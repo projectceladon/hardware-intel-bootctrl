@@ -26,11 +26,11 @@
 #include <string.h>
 
 #include <cutils/properties.h>
-#include <hardware/boot_control.h>
-#include <hardware/hardware.h>
 
 #include <libavb_ab/libavb_ab.h>
 #include <libavb_user/libavb_user.h>
+
+#include "boot_control_avb.h"
 
 static AvbOps* ops = NULL;
 
@@ -115,9 +115,9 @@ static int module_isSlotBootable(struct boot_control_module* module,
     return -EIO;
   }
 
-  is_bootable = (ab_data.slots[slot].priority > 0) &&
-                (ab_data.slots[slot].successful_boot ||
-                 (ab_data.slots[slot].tries_remaining > 0));
+  is_bootable = (ab_data.slot_info[slot].priority > 0) &&
+                (ab_data.slot_info[slot].successful_boot ||
+                 (ab_data.slot_info[slot].tries_remaining > 0));
 
   return is_bootable ? 1 : 0;
 }
@@ -135,7 +135,7 @@ static int module_isSlotMarkedSuccessful(struct boot_control_module* module,
     return -EIO;
   }
 
-  is_marked_successful = ab_data.slots[slot].successful_boot;
+  is_marked_successful = ab_data.slot_info[slot].successful_boot;
 
   return is_marked_successful ? 1 : 0;
 }
@@ -149,12 +149,24 @@ static const char* module_getSuffix(boot_control_module_t* module,
   return suffix[slot];
 }
 
+static bool module_setSnapshotMergeStatus(uint8_t status) {
+    if (avb_ab_set_snapshot_merge_status(ops->ab_ops, status) == AVB_IO_RESULT_OK)
+        return true;
+    else
+        return false;
+}
+
+static uint8_t module_getSnapshotMergeStatus(void) {
+    return avb_ab_get_snapshot_merge_status(ops->ab_ops);
+}
+
 static struct hw_module_methods_t module_methods = {
     .open = NULL,
 };
 
-boot_control_module_t HAL_MODULE_INFO_SYM = {
-    .common =
+private_boot_control_t HAL_MODULE_INFO_SYM = {
+    .base = {
+        .common =
         {
             .tag = HARDWARE_MODULE_TAG,
             .module_api_version = BOOT_CONTROL_MODULE_API_VERSION_0_1,
@@ -164,14 +176,17 @@ boot_control_module_t HAL_MODULE_INFO_SYM = {
             .author = "The Android Open Source Project",
             .methods = &module_methods,
         },
-    .init = module_init,
-    .getNumberSlots = module_getNumberSlots,
-    .getCurrentSlot = module_getCurrentSlot,
-    .markBootSuccessful = module_markBootSuccessful,
-    .setActiveBootSlot = module_setActiveBootSlot,
-    .setSlotAsUnbootable = module_setSlotAsUnbootable,
-    .isSlotBootable = module_isSlotBootable,
-    .getSuffix = module_getSuffix,
-    .isSlotMarkedSuccessful = module_isSlotMarkedSuccessful,
-    .getActiveBootSlot = module_getActiveBootSlot,
+        .init = module_init,
+        .getNumberSlots = module_getNumberSlots,
+        .getCurrentSlot = module_getCurrentSlot,
+        .markBootSuccessful = module_markBootSuccessful,
+        .setActiveBootSlot = module_setActiveBootSlot,
+        .setSlotAsUnbootable = module_setSlotAsUnbootable,
+        .isSlotBootable = module_isSlotBootable,
+        .getSuffix = module_getSuffix,
+        .isSlotMarkedSuccessful = module_isSlotMarkedSuccessful,
+        .getActiveBootSlot = module_getActiveBootSlot,
+    },
+    .SetSnapshotMergeStatus = module_setSnapshotMergeStatus,
+    .GetSnapshotMergeStatus = module_getSnapshotMergeStatus,
 };
