@@ -36,69 +36,63 @@
 extern "C" {
 #endif
 
-/* Magic for the A/B struct when serialized. */
-#define AVB_AB_MAGIC "\0AB0"
-#define AVB_AB_MAGIC_LEN 4
-
-/* Versioning for the on-disk A/B metadata - keep in sync with avbtool. */
-#define AVB_AB_MAJOR_VERSION 1
-#define AVB_AB_MINOR_VERSION 0
-
-/* Size of AvbABData struct. */
-#define AVB_AB_DATA_SIZE 32
+#define BOOT_CTRL_MAGIC   0x42414342 /* Bootloader Control AB */
+#define BOOT_CTRL_VERSION 1
 
 /* Maximum values for slot data */
 #define AVB_AB_MAX_PRIORITY 15
 #define AVB_AB_MAX_TRIES_REMAINING 7
 
-/* Struct used for recording per-slot metadata.
+typedef struct slot_metadata {
+    // Slot priority with 15 meaning highest priority, 1 lowest
+    // priority and 0 the slot is unbootable.
+    uint8_t priority : 4;
+    // Number of times left attempting to boot this slot.
+    uint8_t tries_remaining : 3;
+    // 1 if this slot has booted successfully, 0 otherwise.
+    uint8_t successful_boot : 1;
+    // 1 if this slot is corrupted from a dm-verity corruption, 0
+    // otherwise.
+    uint8_t verity_corrupted : 1;
+    // Reserved for further use.
+    uint8_t reserved : 7;
+} __attribute__((packed)) slot_metadata_t;
+
+/* Bootloader Control AB
  *
- * When serialized, data is stored in network byte-order.
+ * This struct can be used to manage A/B metadata. It is designed to
+ * be put in the 'slot_suffix' field of the 'bootloader_message'
+ * structure described above. It is encouraged to use the
+ * 'bootloader_control' structure to store the A/B metadata, but not
+ * mandatory.
  */
-typedef struct AvbABSlotData {
-  /* Slot priority. Valid values range from 0 to AVB_AB_MAX_PRIORITY,
-   * both inclusive with 1 being the lowest and AVB_AB_MAX_PRIORITY
-   * being the highest. The special value 0 is used to indicate the
-   * slot is unbootable.
-   */
-  uint8_t priority;
+typedef struct bootloader_control {
+    // NUL terminated active slot suffix.
+    char slot_suffix[4];
+    // Bootloader Control AB magic number (see BOOT_CTRL_MAGIC).
+    uint32_t magic;
 
-  /* Number of times left attempting to boot this slot ranging from 0
-   * to AVB_AB_MAX_TRIES_REMAINING.
-   */
-  uint8_t tries_remaining;
+    // Version of struct being used (see BOOT_CTRL_VERSION).
+    uint8_t version_major; // version;
+    // Number of slots being managed.
+    uint8_t nb_slot : 3;
+    // Number of times left attempting to boot recovery.
+    uint8_t recovery_tries_remaining : 3;
+    // Status of any pending snapshot merge of dynamic partitions.
+    uint8_t merge_status : 3;
+    // Ensure 4-bytes alignment for slot_info field.
+    uint8_t reserved0[1];
+    // Per-slot information.  Up to 4 slots.
+    struct slot_metadata slot_info[4];
+    // Reserved for further use.
+    uint8_t reserved1[8];
+    // CRC32 of all 28 bytes preceding this field (little endian
+    // format).
+    uint32_t crc32_le;
+} AVB_ATTR_PACKED bootloader_control;
 
-  /* Non-zero if this slot has booted successfully, 0 otherwise. */
-  uint8_t successful_boot;
-
-  /* Reserved for future use. */
-  uint8_t reserved[1];
-} AVB_ATTR_PACKED AvbABSlotData;
-
-/* Struct used for recording A/B metadata.
- *
- * When serialized, data is stored in network byte-order.
- */
-typedef struct AvbABData {
-  /* Magic number used for identification - see AVB_AB_MAGIC. */
-  uint8_t magic[AVB_AB_MAGIC_LEN];
-
-  /* Version of on-disk struct - see AVB_AB_{MAJOR,MINOR}_VERSION. */
-  uint8_t version_major;
-  uint8_t version_minor;
-
-  /* Padding to ensure |slots| field start eight bytes in. */
-  uint8_t reserved1[2];
-
-  /* Per-slot metadata. */
-  AvbABSlotData slots[2];
-
-  /* Reserved for future use. */
-  uint8_t reserved2[12];
-
-  /* CRC32 of all 28 bytes preceding this field. */
-  uint32_t crc32;
-} AVB_ATTR_PACKED AvbABData;
+typedef struct slot_metadata AvbABSlotData;
+typedef struct bootloader_control AvbABData;
 
 /* Copies |src| to |dest|, byte-swapping fields in the
  * process. Returns false if the data is invalid (e.g. wrong magic,

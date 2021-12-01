@@ -115,9 +115,9 @@ static int module_isSlotBootable(struct boot_control_module* module,
     return -EIO;
   }
 
-  is_bootable = (ab_data.slots[slot].priority > 0) &&
-                (ab_data.slots[slot].successful_boot ||
-                 (ab_data.slots[slot].tries_remaining > 0));
+  is_bootable = (ab_data.slot_info[slot].priority > 0) &&
+                (ab_data.slot_info[slot].successful_boot ||
+                 (ab_data.slot_info[slot].tries_remaining > 0));
 
   return is_bootable ? 1 : 0;
 }
@@ -135,7 +135,7 @@ static int module_isSlotMarkedSuccessful(struct boot_control_module* module,
     return -EIO;
   }
 
-  is_marked_successful = ab_data.slots[slot].successful_boot;
+  is_marked_successful = ab_data.slot_info[slot].successful_boot;
 
   return is_marked_successful ? 1 : 0;
 }
