@@ -26,22 +26,24 @@
 
 bool avb_ab_data_verify_and_byteswap(const AvbABData* src, AvbABData* dest) {
   /* Ensure magic is correct. */
-  if (src->magic != BOOT_CTRL_MAGIC) {
+  if (avb_safe_memcmp(src->magic, AVB_AB_MAGIC, AVB_AB_MAGIC_LEN) != 0) {
     avb_error("Magic is incorrect.\n");
     return false;
   }
 
   avb_memcpy(dest, src, sizeof(AvbABData));
+  dest->crc32 = avb_be32toh(dest->crc32);
+
   /* Ensure we don't attempt to access any fields if the major version
    * is not supported.
    */
-  if (dest->version_major > BOOT_CTRL_VERSION) {
+  if (dest->version_major > AVB_AB_MAJOR_VERSION) {
     avb_error("No support for given major version.\n");
     return false;
   }
 
   /* Bail if CRC32 doesn't match. */
-  if (dest->crc32_le !=
+  if (dest->crc32 !=
       avb_crc32((const uint8_t*)dest, sizeof(AvbABData) - sizeof(uint32_t))) {
     avb_error("CRC32 does not match.\n");
     return false;
@@ -53,24 +55,22 @@ bool avb_ab_data_verify_and_byteswap(const AvbABData* src, AvbABData* dest) {
 void avb_ab_data_update_crc_and_byteswap(const AvbABData* src,
                                          AvbABData* dest) {
   avb_memcpy(dest, src, sizeof(AvbABData));
-  dest->crc32_le = avb_crc32((const uint8_t*)dest,
-                             sizeof(AvbABData) - sizeof(uint32_t));
+  dest->crc32 = avb_htobe32(
+      avb_crc32((const uint8_t*)dest, sizeof(AvbABData) - sizeof(uint32_t)));
 }
 
 void avb_ab_data_init(AvbABData* data) {
   avb_memset(data, '\0', sizeof(AvbABData));
-  data->magic = BOOT_CTRL_MAGIC;
-  data->version_major = BOOT_CTRL_VERSION;
-  data->nb_slot = 2;
-  data->slot_info[0].priority = AVB_AB_MAX_PRIORITY;
-  data->slot_info[0].tries_remaining = AVB_AB_MAX_TRIES_REMAINING;
-  data->slot_info[0].successful_boot = 0;
-  data->slot_info[1].priority = AVB_AB_MAX_PRIORITY - 1;
-  data->slot_info[1].tries_remaining = AVB_AB_MAX_TRIES_REMAINING;
-  data->slot_info[1].successful_boot = 0;
-  avb_memcpy(data->slot_suffix, "_a", 2);
+  avb_memcpy(data->magic, AVB_AB_MAGIC, AVB_AB_MAGIC_LEN);
+  data->version_major = AVB_AB_MAJOR_VERSION;
+  data->version_minor = AVB_AB_MINOR_VERSION;
+  data->slots[0].priority = AVB_AB_MAX_PRIORITY;
+  data->slots[0].tries_remaining = AVB_AB_MAX_TRIES_REMAINING;
+  data->slots[0].successful_boot = 0;
+  data->slots[1].priority = AVB_AB_MAX_PRIORITY - 1;
+  data->slots[1].tries_remaining = AVB_AB_MAX_TRIES_REMAINING;
+  data->slots[1].successful_boot = 0;
 }
-
 
 /* The AvbABData struct is stored 2048 bytes into the 'misc' partition
  * following the 'struct bootloader_message' field. The struct is
@@ -152,11 +152,16 @@ static void slot_normalize(AvbABSlotData* slot) {
       /* We've exhausted all tries -> unbootable. */
       slot_set_unbootable(slot);
     }
+    if (slot->tries_remaining > 0 && slot->successful_boot) {
+      /* Illegal state - avb_ab_mark_slot_successful() will clear
+       * tries_remaining when setting successful_boot.
+       */
+      slot_set_unbootable(slot);
+    }
   } else {
     slot_set_unbootable(slot);
   }
 }
-
 
 static const char* slot_suffixes[2] = {"_a", "_b"};
 
@@ -179,8 +184,8 @@ static AvbIOResult load_metadata(AvbABOps* ab_ops,
    * unbootable and all unbootable states are represented with
    * (priority=0, tries_remaining=0, successful_boot=0).
    */
-  slot_normalize(&ab_data->slot_info[0]);
-  slot_normalize(&ab_data->slot_info[1]);
+  slot_normalize(&ab_data->slots[0]);
+  slot_normalize(&ab_data->slots[1]);
   return AVB_IO_RESULT_OK;
 }
 
@@ -222,7 +227,7 @@ AvbABFlowResult avb_ab_flow(AvbABOps* ab_ops,
 
   /* Validate all bootable slots. */
   for (n = 0; n < 2; n++) {
-    if (slot_is_bootable(&ab_data.slot_info[n])) {
+    if (slot_is_bootable(&ab_data.slots[n])) {
       AvbSlotVerifyResult verify_result;
       bool set_slot_unbootable = false;
 
@@ -286,21 +291,21 @@ AvbABFlowResult avb_ab_flow(AvbABOps* ab_ops,
                    avb_slot_verify_result_to_string(verify_result),
                    " - setting unbootable.\n",
                    NULL);
-        slot_set_unbootable(&ab_data.slot_info[n]);
+        slot_set_unbootable(&ab_data.slots[n]);
       }
     }
   }
 
-  if (slot_is_bootable(&ab_data.slot_info[0]) &&
-      slot_is_bootable(&ab_data.slot_info[1])) {
-    if (ab_data.slot_info[1].priority > ab_data.slot_info[0].priority) {
+  if (slot_is_bootable(&ab_data.slots[0]) &&
+      slot_is_bootable(&ab_data.slots[1])) {
+    if (ab_data.slots[1].priority > ab_data.slots[0].priority) {
       slot_index_to_boot = 1;
     } else {
       slot_index_to_boot = 0;
     }
-  } else if (slot_is_bootable(&ab_data.slot_info[0])) {
+  } else if (slot_is_bootable(&ab_data.slots[0])) {
     slot_index_to_boot = 0;
-  } else if (slot_is_bootable(&ab_data.slot_info[1])) {
+  } else if (slot_is_bootable(&ab_data.slots[1])) {
     slot_index_to_boot = 1;
   } else {
     /* No bootable slots! */
@@ -365,9 +370,9 @@ AvbABFlowResult avb_ab_flow(AvbABOps* ab_ops,
   }
 
   /* ... and decrement tries remaining, if applicable. */
-  if (!ab_data.slot_info[slot_index_to_boot].successful_boot &&
-      ab_data.slot_info[slot_index_to_boot].tries_remaining > 0) {
-    ab_data.slot_info[slot_index_to_boot].tries_remaining -= 1;
+  if (!ab_data.slots[slot_index_to_boot].successful_boot &&
+      ab_data.slots[slot_index_to_boot].tries_remaining > 0) {
+    ab_data.slots[slot_index_to_boot].tries_remaining -= 1;
   }
 
 out:
@@ -407,7 +412,11 @@ AvbIOResult avb_ab_mark_slot_active(AvbABOps* ab_ops,
   unsigned int other_slot_number;
   AvbIOResult ret;
 
-  avb_assert(slot_number < 2);
+  //avb_assert(slot_number < 2);
+  if (slot_number >= 2) {
+    ret = AVB_IO_RESULT_ERROR_IO;
+    goto out;
+  }
 
   ret = load_metadata(ab_ops, &ab_data, &ab_data_orig);
   if (ret != AVB_IO_RESULT_OK) {
@@ -415,14 +424,14 @@ AvbIOResult avb_ab_mark_slot_active(AvbABOps* ab_ops,
   }
 
   /* Make requested slot top priority, unsuccessful, and with max tries. */
-  ab_data.slot_info[slot_number].priority = AVB_AB_MAX_PRIORITY;
-  ab_data.slot_info[slot_number].tries_remaining = AVB_AB_MAX_TRIES_REMAINING;
-  ab_data.slot_info[slot_number].successful_boot = 0;
+  ab_data.slots[slot_number].priority = AVB_AB_MAX_PRIORITY;
+  ab_data.slots[slot_number].tries_remaining = AVB_AB_MAX_TRIES_REMAINING;
+  ab_data.slots[slot_number].successful_boot = 0;
 
   /* Ensure other slot doesn't have as high a priority. */
   other_slot_number = 1 - slot_number;
-  if (ab_data.slot_info[other_slot_number].priority == AVB_AB_MAX_PRIORITY) {
-    ab_data.slot_info[other_slot_number].priority = AVB_AB_MAX_PRIORITY - 1;
+  if (ab_data.slots[other_slot_number].priority == AVB_AB_MAX_PRIORITY) {
+    ab_data.slots[other_slot_number].priority = AVB_AB_MAX_PRIORITY - 1;
   }
 
   ret = AVB_IO_RESULT_OK;
@@ -444,7 +453,7 @@ unsigned int avb_ab_get_active_slot(AvbABOps* ab_ops) {
   }
 
   for (unsigned int i = 0; i < 2; i++) {
-      if (ab_data_orig.slot_info[i].priority == AVB_AB_MAX_PRIORITY)
+      if (ab_data_orig.slots[i].priority == AVB_AB_MAX_PRIORITY)
           return i;
   }
 
@@ -452,20 +461,23 @@ out:
   return 0;
 }
 
-
 AvbIOResult avb_ab_mark_slot_unbootable(AvbABOps* ab_ops,
                                         unsigned int slot_number) {
   AvbABData ab_data, ab_data_orig;
   AvbIOResult ret;
 
-  avb_assert(slot_number < 2);
+  //avb_assert(slot_number < 2);
+  if (slot_number >= 2) {
+    ret = AVB_IO_RESULT_ERROR_IO;
+    goto out;
+  }
 
   ret = load_metadata(ab_ops, &ab_data, &ab_data_orig);
   if (ret != AVB_IO_RESULT_OK) {
     goto out;
   }
 
-  slot_set_unbootable(&ab_data.slot_info[slot_number]);
+  slot_set_unbootable(&ab_data.slots[slot_number]);
 
   ret = AVB_IO_RESULT_OK;
 
@@ -474,46 +486,6 @@ out:
     ret = save_metadata_if_changed(ab_ops, &ab_data, &ab_data_orig);
   }
   return ret;
-}
-
-AvbIOResult avb_ab_set_snapshot_merge_status(AvbABOps* ab_ops,
-                                        uint8_t merge_status) {
-  AvbABData ab_data, ab_data_orig;
-  AvbIOResult ret;
-
-  if (merge_status > CANCELLED)
-    merge_status = UNKNOWN;
-
-  ret = load_metadata(ab_ops, &ab_data, &ab_data_orig);
-  if (ret != AVB_IO_RESULT_OK) {
-    goto out;
-  }
-
-  ab_data.merge_status = merge_status;
-
-  ret = AVB_IO_RESULT_OK;
-
-out:
-  if (ret == AVB_IO_RESULT_OK) {
-    ret = save_metadata_if_changed(ab_ops, &ab_data, &ab_data_orig);
-  }
-  return ret;
-}
-
-uint8_t avb_ab_get_snapshot_merge_status(AvbABOps* ab_ops) {
-  AvbABData ab_data, ab_data_orig;
-  AvbIOResult ret;
-  uint8_t status = UNKNOWN;
-
-  ret = load_metadata(ab_ops, &ab_data, &ab_data_orig);
-  if (ret != AVB_IO_RESULT_OK) {
-    goto out;
-  }
-
-  status = ab_data.merge_status;
-
-out:
-  return status;
 }
 
 AvbIOResult avb_ab_mark_slot_successful(AvbABOps* ab_ops,
@@ -528,14 +500,14 @@ AvbIOResult avb_ab_mark_slot_successful(AvbABOps* ab_ops,
     goto out;
   }
 
-  if (!slot_is_bootable(&ab_data.slot_info[slot_number])) {
+  if (!slot_is_bootable(&ab_data.slots[slot_number])) {
     avb_error("Cannot mark unbootable slot as successful.\n");
     ret = AVB_IO_RESULT_OK;
     goto out;
   }
 
-  ab_data.slot_info[slot_number].tries_remaining = 0;
-  ab_data.slot_info[slot_number].successful_boot = 1;
+  ab_data.slots[slot_number].tries_remaining = 0;
+  ab_data.slots[slot_number].successful_boot = 1;
 
   ret = AVB_IO_RESULT_OK;
 
